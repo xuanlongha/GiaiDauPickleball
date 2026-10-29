@@ -31,10 +31,8 @@ button.b.o{background:none;color:var(--pr);border:1px solid var(--pr)}button.b.r
 .tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{padding:6px 8px;border-bottom:1px solid var(--bd);text-align:center}th:first-child,td:first-child{text-align:left}
 .note{background:var(--bg);border:1px dashed var(--bd);border-radius:8px;padding:10px;font-size:14px;color:var(--mu)}
 </style></head><body>
-<header><h1>🏆 <span id="tn">Giải đấu</span></h1><div class="row"><span class="badge" id="role"></span><select id="me" onchange="setMe(this.value)"></select></div></header>
+<header><h1>🏆 <span id="tn">Giải đấu</span></h1><div class="row"><span class="badge" id="role"></span><button id="pin" onclick="loginOrg()" style="background:rgba(255,255,255,.25);color:inherit;border:0;padding:4px 10px;border-radius:99px;cursor:pointer;font:inherit;font-size:13px">🔑 Ban tổ chức</button><select id="me" onchange="setMe(this.value)"></select></div></header>
 <nav id="nav"></nav><main id="app"><div class="note">Đang tải dữ liệu…</div></main>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
 <script>
 /* ===== CẤU HÌNH: sửa 2 mục dưới đây (xem README.md) ===== */
 const FIREBASE_CONFIG={apiKey:"AIzaSyDAGAKYMNR0B9KKVt2CiZFJ_LEbIBlqVGo",authDomain:"giaidaupick-4656e.firebaseapp.com",projectId:"giaidaupick-4656e",appId:"1:802927328622:web:67a191d9667e010118157f"};
@@ -44,12 +42,16 @@ const ORG_PIN="1234"; /* mã của Ban tổ chức: mở trang bằng ?btc=1234 
  try{const p=new URLSearchParams(location.search).get("btc");if(p)localStorage.setItem("btcpin",p)}catch(e){}
  const E=o=>{if(Array.isArray(o))return o.some(Array.isArray)?{__j:JSON.stringify(o)}:o.map(E);if(o&&typeof o==="object")return Object.fromEntries(Object.entries(o).map(([k,v])=>[k,E(v)]));return o};
  const D=o=>{if(Array.isArray(o))return o.map(D);if(o&&typeof o==="object"){if("__j" in o)return JSON.parse(o.__j);return Object.fromEntries(Object.entries(o).map(([k,v])=>[k,D(v)]))}return o};
+ const FBERR=e=>{const m=String(e&&e.message||e);if(window.toast)toast("❌ Firebase: "+(/permission/i.test(m)?"không có quyền đọc/ghi. Kiểm tra Rules của Firestore (đã Publish chưa, còn hạn không).":/not-found|NOT_FOUND/i.test(m)?"chưa tạo cơ sở dữ liệu Firestore trong dự án.":m),1);console.error(e)};
  const ws=s=>({exists:s.exists,id:s.id,data:()=>D(s.data())});
  const wq=q=>({docs:q.docs.map(d=>({id:d.id,data:()=>D(d.data())})),empty:q.empty,size:q.size});
- const wd=r=>({set:d=>r.set(E(d)),update:d=>r.update(E(d)),delete:()=>r.delete(),onSnapshot:cb=>r.onSnapshot(s=>cb(ws(s))),get:async()=>ws(await r.get())});
- const wc=c=>({doc:id=>wd(c.doc(id)),onSnapshot:cb=>c.onSnapshot(q=>cb(wq(q))),get:async()=>wq(await c.get())});
+ const wd=r=>({set:d=>r.set(E(d)),update:d=>r.update(E(d)),delete:()=>r.delete(),onSnapshot:cb=>r.onSnapshot(s=>cb(ws(s)),e=>FBERR(e)),get:async()=>ws(await r.get())});
+ const wc=c=>({doc:id=>wd(c.doc(id)),onSnapshot:cb=>c.onSnapshot(q=>cb(wq(q)),e=>FBERR(e)),get:async()=>wq(await c.get())});
+
+ const ld=u=>new Promise((ok,no)=>{const e=document.createElement("script");e.src=u;e.onload=ok;e.onerror=()=>no(new Error("Không tải được "+u));document.head.appendChild(e)});
+ async function loadFB(){if(window.firebase&&firebase.firestore)return;const V="10.12.2",L=[["https://www.gstatic.com/firebasejs/"+V+"/firebase-app-compat.js","https://www.gstatic.com/firebasejs/"+V+"/firebase-firestore-compat.js"],["https://cdn.jsdelivr.net/npm/firebase@"+V+"/firebase-app-compat.js","https://cdn.jsdelivr.net/npm/firebase@"+V+"/firebase-firestore-compat.js"],["https://cdnjs.cloudflare.com/ajax/libs/firebase/"+V+"/firebase-app-compat.min.js","https://cdnjs.cloudflare.com/ajax/libs/firebase/"+V+"/firebase-firestore-compat.min.js"]];let err="";for(const p of L){try{await ld(p[0]);await ld(p[1]);if(window.firebase&&firebase.firestore)return}catch(e){err=e.message}}throw new Error("Không tải được thư viện Firebase từ 3 nguồn (gstatic, jsdelivr, cdnjs). "+err)}
  window.claude={use:async n=>{
-  if(n==="db"){if(String(FIREBASE_CONFIG.apiKey).indexOf("DÁN")===0)throw new Error("Chưa cấu hình Firebase");firebase.initializeApp(FIREBASE_CONFIG);const f=firebase.firestore();return{doc:p=>wd(f.doc(p)),collection:p=>wc(f.collection(p))}}
+  if(n==="db"){await loadFB();if(String(FIREBASE_CONFIG.apiKey).indexOf("DÁN")===0)throw new Error("Chưa cấu hình Firebase");firebase.initializeApp(FIREBASE_CONFIG);const f=firebase.firestore();try{f.settings({experimentalForceLongPolling:true,useFetchStreams:false})}catch(e){console.warn(e)}return{doc:p=>wd(f.doc(p)),collection:p=>wc(f.collection(p))}}
   if(n==="user")return{canEdit:()=>{try{return localStorage.getItem("btcpin")===ORG_PIN}catch(e){return false}}};
   if(n==="downloads")return{save:async({filename,data})=>{const a=document.createElement("a");a.href=URL.createObjectURL(data instanceof Blob?data:new Blob([data]));a.download=filename;document.body.appendChild(a);a.click();a.remove()}};
  }};
@@ -72,7 +74,7 @@ function setMe(v){me=v;try{localStorage.setItem("me",v)}catch(e){}render()}
 function role(){return isOrg?"Ban tổ chức":isRef()?"Trọng tài":cfg.players.includes(me)?"Vận động viên":"Khán giả"}
 function tabs(){const t=[["live","📺 Trực tiếp"],["rank","📊 Xếp hạng"],["lich","🗓 Lịch sân"]];if(isOrg||isRef())t.push(["score","🟢 Nhập tỷ số"]);if(isOrg)t.push(["org","⚙️ Ban tổ chức"]);t.push(["info","📜 Thể lệ & Giải thưởng"]);return t}
 function render(force){
- $("#tn").textContent=cfg.name;$("#role").textContent=role();
+ $("#tn").textContent=cfg.name;$("#pin").style.display=isOrg?"none":"";$("#role").textContent=role();
  const o=['<option value="">— Tôi là… —</option>'];
  if(cfg.refs.length)o.push("<optgroup label='Trọng tài'>"+cfg.refs.map(r=>`<option ${r===me?"selected":""}>${esc(r)}</option>`).join("")+"</optgroup>");
  if(cfg.players.length)o.push("<optgroup label='Vận động viên'>"+cfg.players.map(r=>`<option ${r===me?"selected":""}>${esc(r)}</option>`).join("")+"</optgroup>");
@@ -262,13 +264,14 @@ const H=["Trận","Bảng","Sân","Trọng tài","Giờ","Bên A","Bên B","Tỷ
 async function save(name,data){if(!dl)return alert("Trình duyệt này chưa hỗ trợ tải file trực tiếp.");try{await dl.save({filename:name,data:new Blob([data],{type:"text/csv;charset=utf-8"})})}catch(e){}}
 const xl=id=>{const m=get(id);save("tran-"+m.label.replace(/[^\w]+/g,"-")+".csv",csv([H,row(m)]))};
 const xlAll=()=>save("ket-qua-toan-giai.csv",csv([H,...M.map(row)]));
+function loginOrg(){const o=document.createElement("div");o.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:flex;align-items:center;justify-content:center;padding:16px";o.innerHTML=`<div class="card" style="max-width:360px;margin:0"><b>Nhập mã Ban tổ chức</b><input id="pin_i" type="password" style="margin:10px 0"><div class="row" style="justify-content:flex-end"><button class="b o" id="pn">Hủy</button><button class="b" id="py">Vào</button></div></div>`;document.body.appendChild(o);o.querySelector("#pin_i").focus();o.querySelector("#pn").onclick=()=>o.remove();o.querySelector("#py").onclick=()=>{const v=o.querySelector("#pin_i").value;if(v!==ORG_PIN)return toast("❌ Sai mã Ban tổ chức",1);try{localStorage.setItem("btcpin",v)}catch(e){}location.reload()}}
 (async()=>{
- try{const c=window.claude;db=await c.use("db");user=await c.use("user");dl=await c.use("downloads")}catch(e){}
+ const c=window.claude;try{user=await c.use("user");dl=await c.use("downloads")}catch(e){}let dbErr="";try{db=await c.use("db")}catch(e){console.error(e);dbErr=String(e&&e.message||e)}
  isOrg=!!(user&&user.canEdit());
- if(!db){$("#app").innerHTML='<div class="note">Chưa cấu hình Firebase. Mở file index.html, điền FIREBASE_CONFIG theo README.md.</div>';return}
- db.doc("cfg/main").onSnapshot(s=>{if(s.exists)cfg={...cfg,...s.data()};refM();render()});
+ if(!db){$("#app").innerHTML=`<div class="note"><b>Không kết nối được Firebase.</b><br>Chi tiết: ${esc(dbErr)}<br><br>Nếu lỗi nói về việc tải thư viện: mạng hoặc tiện ích chặn quảng cáo có thể đang chặn gstatic.com. Hãy thử trình duyệt khác, tắt tiện ích chặn quảng cáo, hoặc đổi mạng. Hãy mở link GitHub Pages trực tiếp, không mở trong khung xem trước.</div>`;return}
+ db.doc("cfg/main").onSnapshot(s=>{window.__got=1;if(s.exists)cfg={...cfg,...s.data()};refM();render()});
  db.collection("m").onSnapshot(q=>{MR=q.docs.map(d=>({id:d.id,...d.data()}));refM();render()});
- if(isOrg&&!M.length)tab="org";render();
+ if(isOrg&&!M.length)tab="org";render();setTimeout(()=>{if(!window.__got)toast("⚠ Chưa nhận được dữ liệu từ Firebase sau 10 giây. Kiểm tra mạng, tiện ích chặn quảng cáo, và Firestore đã được tạo chưa.",1)},10000);
 })();
 render();
 </script></body></html>
